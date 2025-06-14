@@ -1,116 +1,182 @@
 // backend/services/allocationService.js
 import pool from '../config/db.js';
 
-const checkRoomAvailability = async (id_sala, dia_semana, hora_inicio, hora_fim, allocationIdToExclude = null) => { // RN007
+// Alteração: checkRoomAvailability agora precisa de nome e turno da disciplina para pegar o tempo
+const checkRoomAvailability = async (numero_sala, tipo_sala, id_professor_aloc, nome_disc_aloc, turno_disc_aloc, ano_aloc, semestre_aloc, allocationToExcludePK = {}) => { // RN007
     // RN007: Duas disciplinas não podem estar na mesma sala no mesmo horário.
-    // Check for overlapping times
-    const query = `
-        SELECT * FROM alocacao
-        WHERE id_sala = ? AND dia_semana = ?
-        AND (
-            (hora_inicio < ? AND hora_fim > ?) OR -- Existing allocation starts before and ends after new one
-            (hora_inicio >= ? AND hora_inicio < ?) OR -- Existing allocation starts during new one
-            (hora_fim > ? AND hora_fim <= ?) -- Existing allocation ends during new one
-        )
-        ${allocationIdToExclude ? `AND id_alocacao != ${pool.escape(allocationIdToExclude)}` : ''}
+    // Esta verificação é crucial e mais complexa devido à estrutura atual do DB.
+    // Precisamos unir a alocacao com professor_disciplina para obter as informações de dia e hora.
+
+    // Primeiro, obtenha o dia_semana e hora_inicio/hora_fim da disciplina/professor em professor_disciplina
+    const [scheduledClass] = await pool.execute(
+        'SELECT dia_semana, hora_inicio FROM professor_disciplina WHERE id_professor = ? AND nome = ? AND turno = ? AND ano = ? AND semestre_alocacao = ?',
+        [id_professor_aloc, nome_disc_aloc, turno_disc_aloc, ano_aloc, semestre_aloc]
+    );
+
+    if (!scheduledClass || scheduledClass.length === 0) {
+        throw new Error('Associação professor-disciplina programada não encontrada para a alocação. Verifique se o agendamento existe.');
+    }
+
+    const { dia_semana, hora_inicio } = scheduledClass[0];
+
+    // O banco de dados não tem hora_fim na professor_disciplina, então teremos que inferir ou obter da disciplina se ela tivesse duração.
+    // Para a RN007, é CRÍTICO ter a duração.
+    // Se a `disciplina` tem uma `carga` horária, podemos inferir uma hora_fim.
+    // Por simplicidade, para o check, vamos assumir uma duração padrão (ex: 1 hora) ou que hora_inicio é o ponto de conflito.
+    // A implementação mais robusta de RN007 exigiria 'hora_fim' explícita na professor_disciplina ou disciplina.
+    // Por agora, vou assumir uma duração fixa de 1 hora para o check de conflito, o que pode não ser ideal.
+    // IDEAL: add hora_fim to professor_disciplina table.
+
+    // Para um check mais robusto, precisaríamos da duração. Vamos assumir 1 hora para hora_fim temporariamente para o check.
+    const tempHoraFim = `${parseInt(hora_inicio.split(':')[0]) + 1}:00:00`; // Ex: '08:00:00' -> '09:00:00'
+
+    let query = `
+        SELECT
+            al.numero_sala, al.tipo_sala, pd.dia_semana, pd.hora_inicio
+        FROM alocacao al
+        JOIN professor_disciplina pd ON
+            al.id_professor = pd.id_professor AND
+            al.nome = pd.nome AND
+            al.turno = pd.turno AND
+            al.ano = pd.ano AND
+            al.semestre_alocacao = pd.semestre_alocacao
+        WHERE
+            al.numero_sala = ? AND al.tipo_sala = ? AND pd.dia_semana = ?
+            AND (
+                (pd.hora_inicio < ? AND ADDTIME(pd.hora_inicio, '01:00:00') > ?) OR 
+                (pd.hora_inicio >= ? AND pd.hora_inicio < ?)                     
+            )
     `;
 
-    const [rows] = await pool.execute(query, [
-        id_sala,
-        dia_semana,
-        hora_fim,
-        hora_inicio,
-        hora_inicio,
-        hora_fim,
-        hora_inicio,
-        hora_fim
-    ]);
-    return rows.length === 0; // If no rows, room is available
+    const queryParams = [
+        numero_sala, tipo_sala, dia_semana,
+        tempHoraFim, hora_inicio, // For first overlap check
+        hora_inicio, tempHoraFim // For second overlap check
+    ];
+
+    // Se estiver atualizando uma alocação, exclua-a da verificação de conflito
+    if (Object.keys(allocationToExcludePK).length > 0) {
+        query += ` AND NOT (al.numero_sala = ? AND al.tipo_sala = ? AND al.id_professor = ? AND al.nome = ? AND al.turno = ? AND al.ano = ? AND al.semestre_alocacao = ?)`;
+        queryParams.push(
+            allocationToExcludePK.numero_sala,
+            allocationToExcludePK.tipo_sala,
+            allocationToExcludePK.id_professor,
+            allocationToExcludePK.nome,
+            allocationToExcludePK.turno,
+            allocationToExcludePK.ano,
+            allocationToExcludePK.semestre_alocacao
+        );
+    }
+
+    const [rows] = await pool.execute(query, queryParams);
+    return rows.length === 0; // Se nenhuma linha, a sala está disponível
 };
 
-const createAllocation = async (id_sala, id_professor, id_disciplina, ano, semestre_alocacao, dia_semana, hora_inicio, hora_fim, tipo_alocacao) => { // RN006
+
+// Alteração: createAllocation usa nova chave composta e FK para professor_disciplina
+const createAllocation = async (numero_sala, tipo_sala, id_professor, nome, turno, ano, semestre_alocacao, tipo_alocacao) => { // RN006
     // RN006: Professores podem solicitar salas... apenas para salas que estão disponíveis no horário informado atual.
-    const isAvailable = await checkRoomAvailability(id_sala, dia_semana, hora_inicio, hora_fim);
+    // A verificação de disponibilidade (RN007) já está dentro de checkRoomAvailability
+    // Precisamos obter o dia_semana e hora_inicio de professor_disciplina para o check
+    const [scheduledClass] = await pool.execute(
+        'SELECT dia_semana, hora_inicio FROM professor_disciplina WHERE id_professor = ? AND nome = ? AND turno = ? AND ano = ? AND semestre_alocacao = ?',
+        [id_professor, nome, turno, ano, semestre_alocacao]
+    );
+
+    if (!scheduledClass || scheduledClass.length === 0) {
+        throw new Error('Associação professor-disciplina não encontrada. A alocação deve ser para um agendamento existente.');
+    }
+
+    const isAvailable = await checkRoomAvailability(numero_sala, tipo_sala, id_professor, nome, turno, ano, semestre_alocacao);
     if (!isAvailable) {
-        throw new Error('Sala já ocupada neste horário.'); // RN006, RN007
+        throw new Error('Sala já ocupada neste horário ou conflito de agendamento.'); // RN006, RN007
     }
 
-    // Optionally, check if professor is associated with the discipline (RN008)
-    const [profDiscRows] = await pool.execute(
-        'SELECT * FROM professor_disciplina WHERE id_professor = ? AND id_disciplina = ?',
-        [id_professor, id_disciplina]
-    );
-    if (profDiscRows.length === 0) {
-        throw new Error('Professor não está associado a esta disciplina.'); // RN008
-    }
-
-    const status = 'Pendente'; // Default status for new requests
+    const status = 'pendente'; // Default status for new requests (lowercase ENUM)
     const [result] = await pool.execute(
-        'INSERT INTO alocacao (id_sala, id_professor, id_disciplina, ano, semestre_alocacao, dia_semana, hora_inicio, hora_fim, tipo_alocacao, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [id_sala, id_professor, id_disciplina, ano, semestre_alocacao, dia_semana, hora_inicio, hora_fim, tipo_alocacao, status]
+        'INSERT INTO alocacao (numero_sala, tipo_sala, id_professor, nome, turno, ano, semestre_alocacao, tipo_alocacao, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [numero_sala, tipo_sala, id_professor, nome, turno, ano, semestre_alocacao, tipo_alocacao, status]
     );
-    return { id_alocacao: result.insertId, id_sala, id_professor, id_disciplina, ano, semestre_alocacao, dia_semana, hora_inicio, hora_fim, tipo_alocacao, status };
+    // Não retorna insertId, pois a PK é composta
+    return { numero_sala, tipo_sala, id_professor, nome, turno, ano, semestre_alocacao, tipo_alocacao, status };
 };
 
+// Alteração: getAllAllocations com JOINS para obter detalhes de tempo
 const getAllAllocations = async () => {
     const [rows] = await pool.execute(`
         SELECT
-            a.id_alocacao,
-            a.ano,
-            a.semestre_alocacao,
-            a.dia_semana,
-            a.hora_inicio,
-            a.hora_fim,
-            a.tipo_alocacao,
-            a.status AS alocacao_status,
-            s.numero_sala,
-            s.tipo_sala,
+            al.numero_sala,
+            al.tipo_sala,
+            al.tipo_alocacao,
+            al.status AS alocacao_status,
+            pd.dia_semana,
+            pd.hora_inicio, 
             p.nome AS professor_nome,
             d.nome AS disciplina_nome,
-            d.turno AS disciplina_turno
-        FROM alocacao a
-        JOIN sala s ON a.id_sala = s.id_sala
-        JOIN professor p ON a.id_professor = p.id_professor
-        JOIN disciplina d ON a.id_disciplina = d.id_disciplina
+            d.turno AS disciplina_turno,
+            al.ano,
+            al.semestre_alocacao
+        FROM alocacao al
+        JOIN sala s ON al.numero_sala = s.numero_sala AND al.tipo_sala = s.tipo_sala
+        JOIN professor_disciplina pd ON
+            al.id_professor = pd.id_professor AND
+            al.nome = pd.nome AND
+            al.turno = pd.turno AND
+            al.ano = pd.ano AND
+            al.semestre_alocacao = pd.semestre_alocacao
+        JOIN professor p ON al.id_professor = p.id_professor
+        JOIN disciplina d ON al.nome = d.nome AND al.turno = d.turno
     `);
     return rows;
 };
 
+// Alteração: getAllocationsByProfessor filtrando por id_professor
 const getAllocationsByProfessor = async (id_professor) => {
     const [rows] = await pool.execute(`
         SELECT
-            a.id_alocacao,
-            a.ano,
-            a.semestre_alocacao,
-            a.dia_semana,
-            a.hora_inicio,
-            a.hora_fim,
-            a.tipo_alocacao,
-            a.status AS alocacao_status,
-            s.numero_sala,
-            s.tipo_sala,
+            al.numero_sala,
+            al.tipo_sala,
+            al.tipo_alocacao,
+            al.status AS alocacao_status,
+            pd.dia_semana,
+            pd.hora_inicio, 
             p.nome AS professor_nome,
             d.nome AS disciplina_nome,
-            d.turno AS disciplina_turno
-        FROM alocacao a
-        JOIN sala s ON a.id_sala = s.id_sala
-        JOIN professor p ON a.id_professor = p.id_professor
-        JOIN disciplina d ON a.id_disciplina = d.id_disciplina
-        WHERE a.id_professor = ?
+            d.turno AS disciplina_turno,
+            al.ano,
+            al.semestre_alocacao
+        FROM alocacao al
+        JOIN sala s ON al.numero_sala = s.numero_sala AND al.tipo_sala = s.tipo_sala
+        JOIN professor_disciplina pd ON
+            al.id_professor = pd.id_professor AND
+            al.nome = pd.nome AND
+            al.turno = pd.turno AND
+            al.ano = pd.ano AND
+            al.semestre_alocacao = pd.semestre_alocacao
+        JOIN professor p ON al.id_professor = p.id_professor
+        JOIN disciplina d ON al.nome = d.nome AND al.turno = d.turno
+        WHERE al.id_professor = ?
     `, [id_professor]);
     return rows;
 };
 
-const updateAllocationStatus = async (id_alocacao, status) => {
+// Alteração: updateAllocationStatus usa a nova chave composta da alocação
+const updateAllocationStatus = async (numero_sala, tipo_sala, id_professor, nome, turno, ano, semestre_alocacao, status) => {
     const [result] = await pool.execute(
-        'UPDATE alocacao SET status = ? WHERE id_alocacao = ?',
-        [status, id_alocacao]
+        `UPDATE alocacao SET status = ?
+         WHERE numero_sala = ? AND tipo_sala = ? AND id_professor = ? AND nome = ? AND turno = ? AND ano = ? AND semestre_alocacao = ?`,
+        [status, numero_sala, tipo_sala, id_professor, nome, turno, ano, semestre_alocacao]
     );
     return result.affectedRows > 0;
 };
 
-const deleteAllocation = async (id) => {
-    const [result] = await pool.execute('DELETE FROM alocacao WHERE id_alocacao = ?', [id]);
+// Alteração: deleteAllocation usa a nova chave composta da alocação
+const deleteAllocation = async (numero_sala, tipo_sala, id_professor, nome, turno, ano, semestre_alocacao) => {
+    const [result] = await pool.execute(
+        `DELETE FROM alocacao
+         WHERE numero_sala = ? AND tipo_sala = ? AND id_professor = ? AND nome = ? AND turno = ? AND ano = ? AND semestre_alocacao = ?`,
+        [numero_sala, tipo_sala, id_professor, nome, turno, ano, semestre_alocacao]
+    );
     return result.affectedRows > 0;
 };
 

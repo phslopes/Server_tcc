@@ -2,7 +2,7 @@
 import express from 'express';
 import {
     getAllRooms,
-    getRoomById,
+    getRoomByCompositeKey, // Nova função para GET by PK
     createRoom,
     updateRoom,
     deleteRoom
@@ -21,10 +21,11 @@ router.get('/', authenticateToken, authorizeRole(['admin', 'professor', 'aluno']
     }
 });
 
-// Get room by ID
-router.get('/:id', authenticateToken, authorizeRole(['admin', 'professor', 'aluno']), async (req, res, next) => {
+// Alteração: Get room by composite key (numero_sala, tipo_sala)
+router.get('/:numeroSala/:tipoSala', authenticateToken, authorizeRole(['admin', 'professor', 'aluno']), async (req, res, next) => {
     try {
-        const room = await getRoomById(req.params.id);
+        const { numeroSala, tipoSala } = req.params;
+        const room = await getRoomByCompositeKey(parseInt(numeroSala), tipoSala); // Converte numeroSala para INT
         if (!room) {
             return res.status(404).json({ message: 'Sala não encontrada' });
         }
@@ -41,50 +42,54 @@ router.post('/', authenticateToken, authorizeRole(['admin']), async (req, res, n
         if (!numero_sala || !tipo_sala) {
             return res.status(400).json({ message: 'Número da sala e tipo são obrigatórios.' });
         }
-        if (!['Sala', 'Laboratório'].includes(tipo_sala)) {
-            return res.status(400).json({ message: 'Tipo de sala inválido. Deve ser "Sala" ou "Laboratório".' });
+        // ENUM tipo_sala em lowercase
+        if (!['sala', 'laboratorio'].includes(tipo_sala.toLowerCase())) {
+            return res.status(400).json({ message: 'Tipo de sala inválido. Deve ser "sala" ou "laboratorio".' });
         }
-        // RN005: status is set to 'Livre' by default in the service
-        const newRoom = await createRoom(numero_sala, tipo_sala);
+        // RN005: status é setado para 'livre' por default no serviço
+        const newRoom = await createRoom(numero_sala, tipo_sala.toLowerCase());
         res.status(201).json(newRoom);
     } catch (error) {
-        if (error.code === 'ER_DUP_ENTRY' && error.sqlMessage.includes('numero_sala')) {
-            return res.status(409).json({ message: 'Já existe uma sala com este número.' });
+        if (error.code === 'ER_DUP_ENTRY' && error.sqlMessage.includes('PRIMARY')) {
+            return res.status(409).json({ message: 'Já existe uma sala com este número e tipo.' });
         }
         next(error);
     }
 });
 
-// Update a room (Admin only)
-router.put('/:id', authenticateToken, authorizeRole(['admin']), async (req, res, next) => {
+// Alteração: Update a room (Admin only)
+router.put('/:oldNumeroSala/:oldTipoSala', authenticateToken, authorizeRole(['admin']), async (req, res, next) => {
     try {
-        const { numero_sala, tipo_sala, status } = req.body;
+        const { oldNumeroSala, oldTipoSala } = req.params;
+        const { numero_sala, tipo_sala, status } = req.body; // Novas informações
         if (!numero_sala || !tipo_sala || !status) {
             return res.status(400).json({ message: 'Número da sala, tipo e status são obrigatórios para atualização.' });
         }
-        if (!['Sala', 'Laboratório'].includes(tipo_sala)) {
-            return res.status(400).json({ message: 'Tipo de sala inválido. Deve ser "Sala" ou "Laboratório".' });
+        // ENUM tipo_sala e status em lowercase
+        if (!['sala', 'laboratorio'].includes(tipo_sala.toLowerCase())) {
+            return res.status(400).json({ message: 'Tipo de sala inválido. Deve ser "sala" ou "laboratorio".' });
         }
-        if (!['Livre', 'Ocupada'].includes(status)) {
-            return res.status(400).json({ message: 'Status inválido. Deve ser "Livre" ou "Ocupada".' });
+        if (!['livre', 'ocupada'].includes(status.toLowerCase())) {
+            return res.status(400).json({ message: 'Status inválido. Deve ser "livre" ou "ocupada".' });
         }
-        const updated = await updateRoom(req.params.id, numero_sala, tipo_sala, status);
+        const updated = await updateRoom(parseInt(oldNumeroSala), oldTipoSala.toLowerCase(), parseInt(numero_sala), tipo_sala.toLowerCase(), status.toLowerCase());
         if (!updated) {
-            return res.status(404).json({ message: 'Sala não encontrada.' });
+            return res.status(404).json({ message: 'Sala não encontrada ou dados idênticos.' });
         }
         res.json({ message: 'Sala atualizada com sucesso.' });
     } catch (error) {
-        if (error.code === 'ER_DUP_ENTRY' && error.sqlMessage.includes('numero_sala')) {
-            return res.status(409).json({ message: 'Já existe outra sala com este número.' });
+        if (error.code === 'ER_DUP_ENTRY' && error.sqlMessage.includes('PRIMARY')) {
+            return res.status(409).json({ message: 'Já existe outra sala com este número e tipo após a atualização.' });
         }
         next(error);
     }
 });
 
-// Delete a room (Admin only)
-router.delete('/:id', authenticateToken, authorizeRole(['admin']), async (req, res, next) => {
+// Alteração: Delete a room (Admin only)
+router.delete('/:numeroSala/:tipoSala', authenticateToken, authorizeRole(['admin']), async (req, res, next) => {
     try {
-        const deleted = await deleteRoom(req.params.id);
+        const { numeroSala, tipoSala } = req.params;
+        const deleted = await deleteRoom(parseInt(numeroSala), tipoSala.toLowerCase());
         if (!deleted) {
             return res.status(404).json({ message: 'Sala não encontrada.' });
         }
