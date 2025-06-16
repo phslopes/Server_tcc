@@ -2,7 +2,7 @@
 import express from 'express';
 import {
     getAllDisciplines,
-    getDisciplineByCompositeKey, // Nova função para GET by PK
+    getDisciplineByCompositeKey, // Esta função é para GET por nome/turno
     createDiscipline,
     updateDiscipline,
     deleteDiscipline
@@ -21,7 +21,6 @@ router.get('/', authenticateToken, authorizeRole(['admin', 'professor', 'aluno']
     }
 });
 
-// Alteração: Get discipline by composite key (nome, turno)
 router.get('/:nome/:turno', authenticateToken, authorizeRole(['admin', 'professor', 'aluno']), async (req, res, next) => {
     try {
         const { nome, turno } = req.params;
@@ -39,14 +38,13 @@ router.get('/:nome/:turno', authenticateToken, authorizeRole(['admin', 'professo
 router.post('/', authenticateToken, authorizeRole(['admin']), async (req, res, next) => {
     try {
         const { nome, turno, carga, semestre_curso, curso } = req.body;
-        // RN003: validation
         if (!nome || !turno || !carga || !semestre_curso || !curso) {
             return res.status(400).json({ message: 'Todos os campos são obrigatórios para o cadastro da disciplina.' });
         }
         const newDiscipline = await createDiscipline(nome, turno, carga, semestre_curso, curso);
         res.status(201).json(newDiscipline);
     } catch (error) {
-        if (error.code === 'ER_DUP_ENTRY' && error.sqlMessage.includes('PRIMARY')) { // Erro de PK duplicada
+        if (error.code === 'ER_DUP_ENTRY' && error.sqlMessage.includes('PRIMARY')) {
             return res.status(409).json({ message: 'Já existe uma disciplina com este nome e turno.' });
         }
         next(error);
@@ -56,12 +54,16 @@ router.post('/', authenticateToken, authorizeRole(['admin']), async (req, res, n
 // Alteração: Update a discipline (Admin only)
 router.put('/:oldNome/:oldTurno', authenticateToken, authorizeRole(['admin']), async (req, res, next) => {
     try {
-        const { oldNome, oldTurno } = req.params;
-        const { nome, turno, carga, semestre_curso, curso } = req.body; // Novas informações, incluindo possivelmente novo nome/turno
+        const { oldNome, oldTurno } = req.params; // Parâmetros da URL para identificar o registro
+        const { nome, turno, carga, semestre_curso, curso } = req.body; // Novos dados da disciplina (podem incluir novo nome/turno)
+        
         if (!nome || !turno || !carga || !semestre_curso || !curso) {
             return res.status(400).json({ message: 'Todos os campos são obrigatórios para atualização da disciplina.' });
         }
+        
+        // Chama o serviço de atualização, passando os dados antigos (para WHERE) e os novos (para SET)
         const updated = await updateDiscipline(oldNome, oldTurno, nome, turno, carga, semestre_curso, curso);
+        
         if (!updated) {
             return res.status(404).json({ message: 'Disciplina não encontrada ou dados idênticos.' });
         }

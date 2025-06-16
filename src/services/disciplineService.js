@@ -21,13 +21,7 @@ const createDiscipline = async (nome, turno, carga, semestre_curso, curso) => { 
     return { nome, turno, carga, semestre_curso, curso };
 };
 
-// Alteração: Update por chave composta (nome, turno)
-const updateDiscipline = async (oldNome, oldTurno, newNome, newTurno, carga, semestre_curso, curso) => {
-    // Se nome ou turno mudarem, na prática é uma nova disciplina ou uma atualização da PK
-    // Para simplificar, assumimos que nome e turno são a identificação única e se houver mudança neles,
-    // o frontend deve tratar como delete + create.
-    // Aqui, estamos atualizando *outros campos* ou o próprio nome/turno do registro existente.
-    // A query abaixo atualiza todos os campos, incluindo a PK se ela for passada no newNome/newTurno.
+    const updateDiscipline = async (oldNome, oldTurno, newNome, newTurno, carga, semestre_curso, curso) => {
     const [result] = await pool.execute(
         'UPDATE disciplina SET nome = ?, turno = ?, carga = ?, semestre_curso = ?, curso = ? WHERE nome = ? AND turno = ?',
         [newNome, newTurno, carga, semestre_curso, curso, oldNome, oldTurno]
@@ -43,7 +37,7 @@ const deleteDiscipline = async (nome, turno) => {
 
 export {
     getAllDisciplines,
-    getDisciplineByCompositeKey, // Nova função para GET by PK
+    getDisciplineByCompositeKey,
     createDiscipline,
     updateDiscipline,
     deleteDiscipline
