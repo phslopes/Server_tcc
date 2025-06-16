@@ -2,12 +2,13 @@
 import pool from '../config/db.js';
 
 const getAllDisciplines = async () => {
-    const [rows] = await pool.execute('SELECT * FROM disciplina');
+    const [rows] = await pool.execute('SELECT nome, turno, carga, semestre_curso, curso FROM disciplina');
     return rows;
 };
 
-const getDisciplineById = async (id) => {
-    const [rows] = await pool.execute('SELECT * FROM disciplina WHERE id_disciplina = ?', [id]);
+// Alteração: Get por chave composta (nome, turno)
+const getDisciplineByCompositeKey = async (nome, turno) => {
+    const [rows] = await pool.execute('SELECT nome, turno, carga, semestre_curso, curso FROM disciplina WHERE nome = ? AND turno = ?', [nome, turno]);
     return rows[0];
 };
 
@@ -16,25 +17,28 @@ const createDiscipline = async (nome, turno, carga, semestre_curso, curso) => { 
         'INSERT INTO disciplina (nome, turno, carga, semestre_curso, curso) VALUES (?, ?, ?, ?, ?)',
         [nome, turno, carga, semestre_curso, curso]
     );
-    return { id_disciplina: result.insertId, nome, turno, carga, semestre_curso, curso };
+    // Não retorna insertId, pois a PK é composta e já conhecida (nome, turno)
+    return { nome, turno, carga, semestre_curso, curso };
 };
 
-const updateDiscipline = async (id, nome, turno, carga, semestre_curso, curso) => {
+// Alteração: Update por chave composta (oldNome, oldTurno para WHERE; newNome, newTurno para SET)
+const updateDiscipline = async (oldNome, oldTurno, newNome, newTurno, carga, semestre_curso, curso) => {
     const [result] = await pool.execute(
-        'UPDATE disciplina SET nome = ?, turno = ?, carga = ?, semestre_curso = ?, curso = ? WHERE id_disciplina = ?',
-        [nome, turno, carga, semestre_curso, curso, id]
+        'UPDATE disciplina SET nome = ?, turno = ?, carga = ?, semestre_curso = ?, curso = ? WHERE nome = ? AND turno = ?',
+        [newNome, newTurno, carga, semestre_curso, curso, oldNome, oldTurno]
     );
     return result.affectedRows > 0;
 };
 
-const deleteDiscipline = async (id) => {
-    const [result] = await pool.execute('DELETE FROM disciplina WHERE id_disciplina = ?', [id]);
+// Alteração: Delete por chave composta (nome, turno)
+const deleteDiscipline = async (nome, turno) => {
+    const [result] = await pool.execute('DELETE FROM disciplina WHERE nome = ? AND turno = ?', [nome, turno]);
     return result.affectedRows > 0;
 };
 
 export {
     getAllDisciplines,
-    getDisciplineById,
+    getDisciplineByCompositeKey,
     createDiscipline,
     updateDiscipline,
     deleteDiscipline

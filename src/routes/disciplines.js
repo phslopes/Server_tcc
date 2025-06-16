@@ -2,7 +2,7 @@
 import express from 'express';
 import {
     getAllDisciplines,
-    getDisciplineById,
+    getDisciplineByCompositeKey, // Esta função é para GET por nome/turno
     createDiscipline,
     updateDiscipline,
     deleteDiscipline
@@ -21,10 +21,12 @@ router.get('/', authenticateToken, authorizeRole(['admin', 'professor', 'aluno']
     }
 });
 
-// Get discipline by ID
-router.get('/:id', authenticateToken, authorizeRole(['admin', 'professor', 'aluno']), async (req, res, next) => {
+// Alteração: Get discipline by composite key (nome, turno)
+// A rota agora espera dois parâmetros para a chave composta
+router.get('/:nome/:turno', authenticateToken, authorizeRole(['admin', 'professor', 'aluno']), async (req, res, next) => {
     try {
-        const discipline = await getDisciplineById(req.params.id);
+        const { nome, turno } = req.params;
+        const discipline = await getDisciplineByCompositeKey(nome, turno);
         if (!discipline) {
             return res.status(404).json({ message: 'Disciplina não encontrada' });
         }
@@ -38,46 +40,51 @@ router.get('/:id', authenticateToken, authorizeRole(['admin', 'professor', 'alun
 router.post('/', authenticateToken, authorizeRole(['admin']), async (req, res, next) => {
     try {
         const { nome, turno, carga, semestre_curso, curso } = req.body;
-        // RN003: validation
         if (!nome || !turno || !carga || !semestre_curso || !curso) {
             return res.status(400).json({ message: 'Todos os campos são obrigatórios para o cadastro da disciplina.' });
         }
         const newDiscipline = await createDiscipline(nome, turno, carga, semestre_curso, curso);
         res.status(201).json(newDiscipline);
     } catch (error) {
-        // If you have a unique constraint on (nome, turno) in your DB, handle it here
-        if (error.code === 'ER_DUP_ENTRY') {
+        if (error.code === 'ER_DUP_ENTRY' && error.sqlMessage.includes('PRIMARY')) {
             return res.status(409).json({ message: 'Já existe uma disciplina com este nome e turno.' });
         }
         next(error);
     }
 });
 
-// Update a discipline (Admin only)
-router.put('/:id', authenticateToken, authorizeRole(['admin']), async (req, res, next) => {
+// Alteração: Update a discipline (Admin only)
+// A rota agora espera o nome e turno ANTIGOS na URL para identificar o registro
+router.put('/:oldNome/:oldTurno', authenticateToken, authorizeRole(['admin']), async (req, res, next) => {
     try {
-        const { nome, turno, carga, semestre_curso, curso } = req.body;
+        const { oldNome, oldTurno } = req.params; // Parâmetros da URL para identificar o registro
+        const { nome, turno, carga, semestre_curso, curso } = req.body; // Novos dados da disciplina (podem incluir novo nome/turno)
+        
         if (!nome || !turno || !carga || !semestre_curso || !curso) {
             return res.status(400).json({ message: 'Todos os campos são obrigatórios para atualização da disciplina.' });
         }
-        const updated = await updateDiscipline(req.params.id, nome, turno, carga, semestre_curso, curso);
+        
+        // Chama o serviço de atualização, passando os dados antigos (para WHERE) e os novos (para SET)
+        const updated = await updateDiscipline(oldNome, oldTurno, nome, turno, carga, semestre_curso, curso);
+        
         if (!updated) {
-            return res.status(404).json({ message: 'Disciplina não encontrada.' });
+            return res.status(404).json({ message: 'Disciplina não encontrada ou dados idênticos.' });
         }
         res.json({ message: 'Disciplina atualizada com sucesso.' });
     } catch (error) {
-        // If you have a unique constraint on (nome, turno) in your DB, handle it here
-        if (error.code === 'ER_DUP_ENTRY') {
-            return res.status(409).json({ message: 'Já existe outra disciplina com este nome e turno.' });
+        if (error.code === 'ER_DUP_ENTRY' && error.sqlMessage.includes('PRIMARY')) {
+            return res.status(409).json({ message: 'Já existe outra disciplina com este nome e turno após a atualização.' });
         }
         next(error);
     }
 });
 
-// Delete a discipline (Admin only)
-router.delete('/:id', authenticateToken, authorizeRole(['admin']), async (req, res, next) => {
+// Alteração: Delete a discipline (Admin only)
+// A rota agora espera nome e turno na URL para identificar o registro
+router.delete('/:nome/:turno', authenticateToken, authorizeRole(['admin']), async (req, res, next) => {
     try {
-        const deleted = await deleteDiscipline(req.params.id);
+        const { nome, turno } = req.params;
+        const deleted = await deleteDiscipline(nome, turno);
         if (!deleted) {
             return res.status(404).json({ message: 'Disciplina não encontrada.' });
         }
