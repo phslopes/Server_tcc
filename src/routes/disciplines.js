@@ -21,8 +21,6 @@ router.get('/', authenticateToken, authorizeRole(['admin', 'professor', 'aluno']
     }
 });
 
-// Alteração: Get discipline by composite key (nome, turno)
-// A rota agora espera dois parâmetros para a chave composta
 router.get('/:nome/:turno', authenticateToken, authorizeRole(['admin', 'professor', 'aluno']), async (req, res, next) => {
     try {
         const { nome, turno } = req.params;
@@ -54,7 +52,6 @@ router.post('/', authenticateToken, authorizeRole(['admin']), async (req, res, n
 });
 
 // Alteração: Update a discipline (Admin only)
-// A rota agora espera o nome e turno ANTIGOS na URL para identificar o registro
 router.put('/:oldNome/:oldTurno', authenticateToken, authorizeRole(['admin']), async (req, res, next) => {
     try {
         const { oldNome, oldTurno } = req.params; // Parâmetros da URL para identificar o registro
@@ -80,7 +77,6 @@ router.put('/:oldNome/:oldTurno', authenticateToken, authorizeRole(['admin']), a
 });
 
 // Alteração: Delete a discipline (Admin only)
-// A rota agora espera nome e turno na URL para identificar o registro
 router.delete('/:nome/:turno', authenticateToken, authorizeRole(['admin']), async (req, res, next) => {
     try {
         const { nome, turno } = req.params;

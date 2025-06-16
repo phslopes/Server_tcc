@@ -21,8 +21,7 @@ const createDiscipline = async (nome, turno, carga, semestre_curso, curso) => { 
     return { nome, turno, carga, semestre_curso, curso };
 };
 
-// Alteração: Update por chave composta (oldNome, oldTurno para WHERE; newNome, newTurno para SET)
-const updateDiscipline = async (oldNome, oldTurno, newNome, newTurno, carga, semestre_curso, curso) => {
+    const updateDiscipline = async (oldNome, oldTurno, newNome, newTurno, carga, semestre_curso, curso) => {
     const [result] = await pool.execute(
         'UPDATE disciplina SET nome = ?, turno = ?, carga = ?, semestre_curso = ?, curso = ? WHERE nome = ? AND turno = ?',
         [newNome, newTurno, carga, semestre_curso, curso, oldNome, oldTurno]
