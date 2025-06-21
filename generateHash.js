@@ -7,3 +7,5 @@ async function generateHash() {
 }
 
 generateHash();
+
+// senha admin: adminfatec
