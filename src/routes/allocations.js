@@ -3,7 +3,6 @@ import express from 'express'
 import {
   createAllocation,
   getAllAllocations,
-  getAllocationsByProfessor,
   updateAllocationStatus,
   deleteAllocation
 } from '../services/allocationService.js'
@@ -14,31 +13,63 @@ import {
 
 const router = express.Router()
 
-// Get all allocations (Admin can see all, Professor only theirs)
+// Get all allocations with filters (Admin can see all, Professor only theirs)
 router.get(
   '/',
   authenticateToken,
   authorizeRole(['admin', 'professor', 'aluno']),
   async (req, res, next) => {
     try {
+      // Pega todos os filtros da query string
+      const {
+        numeroSala,
+        tipoSala,
+        idProfessor,
+        disciplinaNome,
+        disciplinaTurno,
+        ano,
+        semestreAlocacao,
+        tipoAlocacao,
+        status,
+        curso,
+        semestreCurso
+      } = req.query
+      const filters = {
+        numeroSala,
+        tipoSala,
+        idProfessor,
+        disciplinaNome,
+        disciplinaTurno,
+        ano,
+        semestreAlocacao,
+        tipoAlocacao,
+        status,
+        curso,
+        semestreCurso
+      }
+
+      let allocations
       if (req.user.role === 'admin' || req.user.role === 'aluno') {
-        const allocations = await getAllAllocations()
+        allocations = await getAllAllocations(filters)
         return res.json(allocations)
       } else if (req.user.role === 'professor') {
-        const allocations = await getAllocationsByProfessor(req.user.id)
+        // Professores só veem as suas, então adiciona o filtro de ID do usuário
+        filters.idProfessor = req.user.id
+        allocations = await getAllAllocations(filters)
         return res.json(allocations)
       }
+      res.status(403).json({ message: 'Acesso negado.' })
     } catch (error) {
       next(error)
     }
   }
 )
 
-// Request a new allocation (RN006, RN007 - Professor only)
+// Request a new allocation (RN006, RN007 - Professor and Admin only)
 router.post(
   '/',
   authenticateToken,
-  authorizeRole(['professor']),
+  authorizeRole(['professor', 'admin']),
   async (req, res, next) => {
     try {
       const {
@@ -48,35 +79,37 @@ router.post(
         turno,
         ano,
         semestre_alocacao,
-        tipo_alocacao
+        // tipo_alocacao agora é opcional no body, pois o banco tem DEFAULT
+        // se não for enviado, o banco usará 'fixo'
+        tipo_alocacao // Ainda lemos se ele for enviado
       } = req.body
+
       const id_professor = req.user.id
 
-      // Basic validation
+      // Ajustar validação: tipo_alocacao não precisa ser validado como obrigatório aqui
       if (
         !numero_sala ||
         !tipo_sala ||
         !nome ||
         !turno ||
         !ano ||
-        !semestre_alocacao ||
-        !tipo_alocacao
+        !semestre_alocacao
+        // Removido !tipo_alocacao daqui, pois é DEFAULT
       ) {
-        return res
-          .status(400)
-          .json({
-            message:
-              'Todos os campos são obrigatórios para a solicitação de alocação.'
-          })
+        return res.status(400).json({
+          message:
+            'Campos essenciais para a solicitação de alocação (exceto tipo_alocacao) são obrigatórios.'
+        })
       }
-      // ENUMs em lowercase
-      if (!['esporadico', 'fixo'].includes(tipo_alocacao.toLowerCase())) {
-        return res
-          .status(400)
-          .json({
-            message:
-              'Tipo de alocação inválido. Deve ser "esporadico" ou "fixo".'
-          })
+
+      // Se tipo_alocacao for enviado, valida. Se não, o DB usa o DEFAULT.
+      if (
+        tipo_alocacao &&
+        !['esporadico', 'fixo'].includes(tipo_alocacao.toLowerCase())
+      ) {
+        return res.status(400).json({
+          message: 'Tipo de alocação inválido. Deve ser "esporadico" ou "fixo".'
+        })
       }
 
       const newAllocation = await createAllocation(
@@ -87,7 +120,7 @@ router.post(
         turno,
         parseInt(ano),
         parseInt(semestre_alocacao),
-        tipo_alocacao.toLowerCase()
+        tipo_alocacao ? tipo_alocacao.toLowerCase() : 'fixo' // Passa 'fixo' se não veio no body
       )
       res.status(201).json(newAllocation)
     } catch (error) {
@@ -117,7 +150,6 @@ router.put(
       if (
         !['confirmada', 'pendente', 'cancelada'].includes(status.toLowerCase())
       ) {
-        // ENUMs em lowercase
         return res.status(400).json({ message: 'Status de alocação inválido.' })
       }
       const updated = await updateAllocationStatus(

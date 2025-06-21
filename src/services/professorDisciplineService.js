@@ -201,10 +201,8 @@ const copyProfessorDisciplineAssociations = async (
         copiedCount++
       }
     } catch (error) {
-      // Se houver qualquer outro erro que não seja duplicata (e INSERT IGNORE não tratar)
+      // Se houver qualquer outro erro que não seja duplicata
       console.error('Erro ao copiar associação:', error)
-      // Você pode decidir relançar o erro ou apenas logar e continuar
-      // throw error;
     }
   }
   return copiedCount
