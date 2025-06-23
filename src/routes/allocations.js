@@ -5,7 +5,11 @@ import {
   getAllAllocations,
   updateAllocationStatus,
   deleteAllocation,
-  changeAllocationRoom
+  changeAllocationRoom,
+  checkRoomAvailabilityForReservation,
+  checkProfessorSchedule,
+  checkRoomAvailabilityOnly,
+  updateAllocationStatusById
 } from '../services/allocationService.js'
 import {
   authenticateToken,
@@ -51,7 +55,9 @@ router.post(
         turno,
         ano,
         semestre_alocacao,
-        tipo_alocacao
+        tipo_alocacao,
+        dia_semana,
+        hora_inicio
       } = req.body
 
       if (
@@ -61,7 +67,9 @@ router.post(
         !nome ||
         !turno ||
         !ano ||
-        !semestre_alocacao
+        !semestre_alocacao ||
+        !dia_semana ||
+        !hora_inicio
       ) {
         return res
           .status(400)
@@ -80,11 +88,57 @@ router.post(
         parseInt(ano),
         parseInt(semestre_alocacao),
         tipo_alocacao ? tipo_alocacao.toLowerCase() : 'fixo',
-        req.user.role
+        parseInt(dia_semana),
+        hora_inicio
       )
       res.status(201).json(newAllocation)
     } catch (error) {
       res.status(400).json({ message: error.message })
+    }
+  }
+)
+
+router.put(
+  '/:numeroSala/:tipoSala/:idProfessor/:nomeDisc/:turnoDisc/:ano/:semestreAlocacao/:diaSemana/:horaInicio/status',
+  authenticateToken,
+  authorizeRole(['admin']),
+  async (req, res, next) => {
+    try {
+      const {
+        numeroSala,
+        tipoSala,
+        idProfessor,
+        nomeDisc,
+        turnoDisc,
+        ano,
+        semestreAlocacao,
+        diaSemana,
+        horaInicio
+      } = req.params
+      const { status } = req.body
+      if (
+        !['confirmada', 'pendente', 'cancelada'].includes(status.toLowerCase())
+      ) {
+        return res.status(400).json({ message: 'Status de alocação inválido.' })
+      }
+      const updated = await updateAllocationStatusById(
+        parseInt(numeroSala),
+        tipoSala.toLowerCase(),
+        parseInt(idProfessor),
+        nomeDisc,
+        turnoDisc,
+        parseInt(ano),
+        parseInt(semestreAlocacao),
+        parseInt(diaSemana),
+        horaInicio,
+        status.toLowerCase()
+      )
+      if (!updated) {
+        return res.status(404).json({ message: 'Alocação não encontrada.' })
+      }
+      res.json({ message: 'Status da alocação atualizado com sucesso.' })
+    } catch (error) {
+      next(error)
     }
   }
 )
@@ -191,6 +245,115 @@ router.delete(
         return res.status(404).json({ message: 'Alocação não encontrada.' })
       }
       res.json({ message: 'Alocação deletada com sucesso.' })
+    } catch (error) {
+      next(error)
+    }
+  }
+)
+
+router.get(
+  '/availability',
+  authenticateToken,
+  authorizeRole(['professor', 'admin']),
+  async (req, res, next) => {
+    try {
+      const {
+        id_professor,
+        nome,
+        turno,
+        ano,
+        semestre_alocacao,
+        dia_semana,
+        hora_inicio
+      } = req.query
+
+      if (!id_professor || !nome || !turno || !ano || !semestre_alocacao || !dia_semana || !hora_inicio) {
+        return res.status(400).json({
+          message: 'Todos os parâmetros são obrigatórios: id_professor, nome, turno, ano, semestre_alocacao, dia_semana, hora_inicio'
+        })
+      }
+
+      const availableRooms = await checkRoomAvailabilityForReservation(
+        parseInt(id_professor),
+        nome,
+        turno,
+        parseInt(ano),
+        parseInt(semestre_alocacao),
+        parseInt(dia_semana),
+        hora_inicio
+      )
+
+      res.json(availableRooms)
+    } catch (error) {
+      next(error)
+    }
+  }
+)
+
+// Novo endpoint para verificar se professor tem aula programada
+router.get(
+  '/check-schedule',
+  authenticateToken,
+  authorizeRole(['professor', 'admin']),
+  async (req, res, next) => {
+    try {
+      const {
+        id_professor,
+        nome,
+        turno,
+        ano,
+        semestre_alocacao,
+        dia_semana,
+        hora_inicio
+      } = req.query
+
+      if (!id_professor || !nome || !turno || !ano || !semestre_alocacao || !dia_semana || !hora_inicio) {
+        return res.status(400).json({
+          message: 'Todos os parâmetros são obrigatórios: id_professor, nome, turno, ano, semestre_alocacao, dia_semana, hora_inicio'
+        })
+      }
+
+      const hasSchedule = await checkProfessorSchedule(
+        parseInt(id_professor),
+        nome,
+        turno,
+        parseInt(ano),
+        parseInt(semestre_alocacao),
+        parseInt(dia_semana),
+        hora_inicio
+      )
+
+      res.json({ hasSchedule })
+    } catch (error) {
+      next(error)
+    }
+  }
+)
+
+// Novo endpoint para verificar disponibilidade de salas (sem verificar programação)
+router.get(
+  '/room-availability',
+  authenticateToken,
+  authorizeRole(['professor', 'admin']),
+  async (req, res, next) => {
+    try {
+      const {
+        dia_semana,
+        hora_inicio
+      } = req.query
+
+      if (!dia_semana || !hora_inicio) {
+        return res.status(400).json({
+          message: 'Parâmetros obrigatórios: dia_semana, hora_inicio'
+        })
+      }
+
+      const availableRooms = await checkRoomAvailabilityOnly(
+        parseInt(dia_semana),
+        hora_inicio
+      )
+
+      res.json(availableRooms)
     } catch (error) {
       next(error)
     }

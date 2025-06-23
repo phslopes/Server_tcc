@@ -31,12 +31,23 @@ const checkRoomAvailability = async (
 
   const tempHoraFim = `${parseInt(hora_inicio.split(':')[0]) + 1}:00:00`
   let query = `
-          SELECT al.numero_sala, al.tipo_sala, pd.dia_semana, pd.hora_inicio
-          FROM alocacao al
-          JOIN professor_disciplina pd ON al.id_professor = pd.id_professor AND al.nome = pd.nome AND al.turno = pd.turno AND al.ano = pd.ano AND al.semestre_alocacao = pd.semestre_alocacao
-          WHERE al.numero_sala = ? AND al.tipo_sala = ? AND pd.dia_semana = ?
-            AND ( (pd.hora_inicio < ? AND ADDTIME(pd.hora_inicio, '01:00:00') > ?) OR (pd.hora_inicio >= ? AND pd.hora_inicio < ?) )
-      `
+          SELECT
+            al.numero_sala, al.tipo_sala, pd.dia_semana, pd.hora_inicio
+        FROM alocacao al
+        JOIN professor_disciplina pd ON
+            al.id_professor = pd.id_professor AND
+            al.nome = pd.nome AND
+            al.turno = pd.turno AND
+            al.ano = pd.ano AND
+            al.semestre_alocacao = pd.semestre_alocacao
+        WHERE
+            al.numero_sala = ? AND al.tipo_sala = ? AND pd.dia_semana = ?
+            AND al.status IN ('confirmada', 'pendente')
+            AND (
+                (pd.hora_inicio < ? AND ADDTIME(pd.hora_inicio, '01:00:00') > ?) OR 
+                (pd.hora_inicio >= ? AND pd.hora_inicio < ?)                     
+            )
+    `
   const queryParams = [
     numero_sala,
     tipo_sala,
@@ -59,6 +70,8 @@ const createAllocation = async (
   ano,
   semestre_alocacao,
   tipo_alocacao,
+  dia_semana,
+  hora_inicio,
   userRole
 ) => {
   const isAvailable = await checkRoomAvailability(
@@ -68,7 +81,9 @@ const createAllocation = async (
     nome,
     turno,
     ano,
-    semestre_alocacao
+    semestre_alocacao,
+    dia_semana,
+    hora_inicio
   )
   if (!isAvailable) {
     throw new Error(
@@ -79,7 +94,7 @@ const createAllocation = async (
   const status = userRole === 'admin' ? 'confirmada' : 'pendente'
 
   const [result] = await pool.execute(
-    'INSERT INTO alocacao (numero_sala, tipo_sala, id_professor, nome, turno, ano, semestre_alocacao, tipo_alocacao, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO alocacao (numero_sala, tipo_sala, id_professor, nome, turno, ano, semestre_alocacao, tipo_alocacao, status, dia_semana, hora_inicio) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [
       numero_sala,
       tipo_sala,
@@ -89,7 +104,9 @@ const createAllocation = async (
       ano,
       semestre_alocacao,
       tipo_alocacao,
-      status
+      status,
+      dia_semana,
+      hora_inicio
     ]
   )
 
@@ -106,8 +123,29 @@ const createAllocation = async (
     ano,
     semestre_alocacao,
     tipo_alocacao,
-    status
+    status,
+    dia_semana,
+    hora_inicio
   }
+}
+
+const checkRoomAvailabilityForSpecificTime = async (
+  numero_sala,
+  tipo_sala,
+  dia_semana,
+  hora_inicio
+) => {
+  const [conflicts] = await pool.execute(`
+    SELECT 1
+    FROM alocacao al
+    WHERE al.numero_sala = ? 
+    AND al.tipo_sala = ?
+    AND al.dia_semana = ?
+    AND al.hora_inicio = ?
+    AND al.status IN ('confirmada', 'pendente')
+  `, [numero_sala, tipo_sala, dia_semana, hora_inicio])
+
+  return conflicts.length === 0 // Se nenhum conflito, a sala está disponível
 }
 
 const changeAllocationRoom = async (oldAllocationPK, newRoom) => {
@@ -195,15 +233,23 @@ const changeAllocationRoom = async (oldAllocationPK, newRoom) => {
 const getAllAllocations = async (filters = {}) => {
   let query = `
           SELECT
-              al.numero_sala, al.tipo_sala, al.tipo_alocacao, al.status AS alocacao_status,
-              pd.dia_semana, pd.hora_inicio, p.nome AS professor_nome, d.nome AS disciplina_nome,
-              d.turno AS disciplina_turno, al.ano, al.semestre_alocacao, al.id_professor 
-          FROM alocacao al
-          JOIN sala s ON al.numero_sala = s.numero_sala AND al.tipo_sala = s.tipo_sala
-          JOIN professor_disciplina pd ON al.id_professor = pd.id_professor AND al.nome = pd.nome AND al.turno = pd.turno AND al.ano = pd.ano AND al.semestre_alocacao = pd.semestre_alocacao
-          JOIN professor p ON al.id_professor = p.id_professor
-          JOIN disciplina d ON al.nome = d.nome AND al.turno = d.turno
-      `
+            al.numero_sala,
+            al.tipo_sala,
+            al.tipo_alocacao,
+            al.status AS alocacao_status,
+            al.dia_semana,
+            al.hora_inicio,
+            p.nome AS professor_nome,
+            d.nome AS disciplina_nome,
+            d.turno AS disciplina_turno,
+            al.ano,
+            al.semestre_alocacao,
+            al.id_professor -- Incluir id_professor para uso no frontend (edição/deleção)
+        FROM alocacao al
+        JOIN sala s ON al.numero_sala = s.numero_sala AND al.tipo_sala = s.tipo_sala
+        JOIN professor p ON al.id_professor = p.id_professor
+        JOIN disciplina d ON al.nome = d.nome AND al.turno = d.turno
+    `
   const conditions = []
   const params = []
   if (filters.curso) {
@@ -258,6 +304,37 @@ const getAllAllocations = async (filters = {}) => {
   return rows
 }
 
+const updateAllocationStatusById = async (
+  numero_sala,
+  tipo_sala,
+  id_professor,
+  nome,
+  turno,
+  ano,
+  semestre_alocacao,
+  dia_semana,
+  hora_inicio,
+  status
+) => {
+  const [result] = await pool.execute(
+    `UPDATE alocacao SET status = ?
+         WHERE numero_sala = ? AND tipo_sala = ? AND id_professor = ? AND nome = ? AND turno = ? AND ano = ? AND semestre_alocacao = ? AND dia_semana = ? AND hora_inicio = ?`,
+    [
+      status,
+      numero_sala,
+      tipo_sala,
+      id_professor,
+      nome,
+      turno,
+      ano,
+      semestre_alocacao,
+      dia_semana,
+      hora_inicio
+    ]
+  )
+  return result.affectedRows > 0
+}
+
 const updateAllocationStatus = async (
   numero_sala,
   tipo_sala,
@@ -310,10 +387,96 @@ const deleteAllocation = async (
   return result.affectedRows > 0
 }
 
+const checkRoomAvailabilityForReservation = async (
+  id_professor,
+  nome,
+  turno,
+  ano,
+  semestre_alocacao,
+  dia_semana,
+  hora_inicio
+) => {
+  const [professorDisciplina] = await pool.execute(
+    'SELECT dia_semana, hora_inicio FROM professor_disciplina WHERE id_professor = ? AND nome = ? AND turno = ? AND ano = ? AND semestre_alocacao = ? AND dia_semana = ? AND hora_inicio = ?',
+    [id_professor, nome, turno, ano, semestre_alocacao, dia_semana, hora_inicio]
+  )
+
+  if (!professorDisciplina || professorDisciplina.length === 0) {
+    throw new Error('Horário não encontrado na programação do professor para esta disciplina.')
+  }
+
+  const [availableRooms] = await pool.execute(`
+    SELECT DISTINCT s.numero_sala, s.tipo_sala
+    FROM sala s
+    WHERE s.status = 'livre'
+    AND NOT EXISTS (
+      SELECT 1
+      FROM alocacao al
+      JOIN professor_disciplina pd ON
+          al.id_professor = pd.id_professor AND
+          al.nome = pd.nome AND
+          al.turno = pd.turno AND
+          al.ano = pd.ano AND
+          al.semestre_alocacao = pd.semestre_alocacao
+      WHERE al.numero_sala = s.numero_sala 
+      AND al.tipo_sala = s.tipo_sala
+      AND pd.dia_semana = ?
+      AND pd.hora_inicio = ?
+      AND al.status IN ('confirmada', 'pendente')
+    )
+  `, [dia_semana, hora_inicio])
+
+  return availableRooms
+}
+
+const checkProfessorSchedule = async (
+  id_professor,
+  nome,
+  turno,
+  ano,
+  semestre_alocacao,
+  dia_semana,
+  hora_inicio
+) => {
+  const [professorDisciplina] = await pool.execute(
+    'SELECT dia_semana, hora_inicio FROM professor_disciplina WHERE id_professor = ? AND nome = ? AND turno = ? AND ano = ? AND semestre_alocacao = ? AND dia_semana = ? AND hora_inicio = ?',
+    [id_professor, nome, turno, ano, semestre_alocacao, dia_semana, hora_inicio]
+  )
+
+  return professorDisciplina.length > 0
+}
+
+const checkRoomAvailabilityOnly = async (
+  dia_semana,
+  hora_inicio
+) => {
+  const [availableRooms] = await pool.execute(`
+    SELECT DISTINCT s.numero_sala, s.tipo_sala
+    FROM sala s
+    WHERE s.status = 'livre'
+    AND NOT EXISTS (
+      SELECT 1
+      FROM alocacao al
+      WHERE al.numero_sala = s.numero_sala 
+      AND al.tipo_sala = s.tipo_sala
+      AND al.dia_semana = ?
+      AND al.hora_inicio = ?
+      AND al.status IN ('confirmada', 'pendente')
+    )
+  `, [dia_semana, hora_inicio])
+
+  return availableRooms
+}
+
 export {
   createAllocation,
   getAllAllocations,
   updateAllocationStatus,
   deleteAllocation,
-  changeAllocationRoom
+  changeAllocationRoom,
+  checkRoomAvailabilityForReservation,
+  checkProfessorSchedule,
+  checkRoomAvailabilityOnly,
+  checkRoomAvailabilityForSpecificTime,
+  updateAllocationStatusById
 }
