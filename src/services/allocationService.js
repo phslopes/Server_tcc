@@ -74,14 +74,9 @@ const createAllocation = async (
   hora_inicio,
   userRole
 ) => {
-  const isAvailable = await checkRoomAvailability(
+  const isAvailable = await checkRoomAvailabilityForSpecificTime(
     numero_sala,
     tipo_sala,
-    id_professor,
-    nome,
-    turno,
-    ano,
-    semestre_alocacao,
     dia_semana,
     hora_inicio
   )
@@ -168,15 +163,26 @@ const changeAllocationRoom = async (oldAllocationPK, newRoom) => {
   if (newRoomStatus.status === 'ocupada')
     throw new Error('A nova sala já está marcada como ocupada.')
 
-  await checkRoomAvailability(
+  const [vinculo] = await pool.execute(
+    'SELECT dia_semana, hora_inicio FROM professor_disciplina WHERE id_professor = ? AND nome = ? AND turno = ? AND ano = ? AND semestre_alocacao = ?',
+    [idProfessor, nomeDisc, turnoDisc, ano, semestreAlocacao]
+  )
+
+  if (!vinculo || vinculo.length === 0) {
+    throw new Error('Vínculo professor-disciplina não encontrado.')
+  }
+
+  const { dia_semana, hora_inicio } = vinculo[0]
+
+  const isAvailable = await checkRoomAvailabilityForSpecificTime(
     new_numero_sala,
     new_tipo_sala,
-    idProfessor,
-    nomeDisc,
-    turnoDisc,
-    ano,
-    semestreAlocacao
+    dia_semana,
+    hora_inicio
   )
+  if (!isAvailable) {
+    throw new Error('Conflito de agendamento: outra disciplina já está alocada para esta sala neste horário.')
+  }
 
   const connection = await pool.getConnection()
   try {
@@ -201,7 +207,7 @@ const changeAllocationRoom = async (oldAllocationPK, newRoom) => {
     )
 
     await connection.execute(
-      'INSERT INTO alocacao (numero_sala, tipo_sala, id_professor, nome, turno, ano, semestre_alocacao, tipo_alocacao, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO alocacao (numero_sala, tipo_sala, id_professor, nome, turno, ano, semestre_alocacao, tipo_alocacao, status, dia_semana, hora_inicio) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         new_numero_sala,
         new_tipo_sala,
@@ -211,7 +217,9 @@ const changeAllocationRoom = async (oldAllocationPK, newRoom) => {
         ano,
         semestreAlocacao,
         'fixo',
-        'confirmada'
+        'confirmada',
+        dia_semana,
+        hora_inicio
       ]
     )
 

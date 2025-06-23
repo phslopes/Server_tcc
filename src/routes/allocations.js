@@ -89,7 +89,8 @@ router.post(
         parseInt(semestre_alocacao),
         tipo_alocacao ? tipo_alocacao.toLowerCase() : 'fixo',
         parseInt(dia_semana),
-        hora_inicio
+        hora_inicio,
+        req.user.role
       )
       res.status(201).json(newAllocation)
     } catch (error) {
