@@ -7,6 +7,7 @@ import {
     updateProfessor,
     deleteProfessor
 } from '../services/professorService.js';
+import { getAllProfessorDisciplineAssociations } from '../services/professorDisciplineService.js';
 import { authenticateToken, authorizeRole } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -79,6 +80,18 @@ router.delete('/:id', authenticateToken, authorizeRole(['admin']), async (req, r
             return res.status(404).json({ message: 'Professor não encontrado.' });
         }
         res.json({ message: 'Professor deletado com sucesso.' });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// Get professor disciplines (for reservation system)
+router.get('/:id/disciplines', authenticateToken, authorizeRole(['admin', 'professor', 'aluno']), async (req, res, next) => {
+    try {
+        const professorId = parseInt(req.params.id);
+        const filters = { idProfessor: professorId };
+        const disciplines = await getAllProfessorDisciplineAssociations(filters);
+        res.json(disciplines);
     } catch (error) {
         next(error);
     }
