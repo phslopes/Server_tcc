@@ -4,7 +4,8 @@ import {
   createAllocation,
   getAllAllocations,
   updateAllocationStatus,
-  deleteAllocation
+  deleteAllocation,
+  changeAllocationRoom
 } from '../services/allocationService.js'
 import {
   authenticateToken,
@@ -13,59 +14,29 @@ import {
 
 const router = express.Router()
 
-// Get all allocations with filters (Admin can see all, Professor only theirs)
 router.get(
   '/',
   authenticateToken,
   authorizeRole(['admin', 'professor', 'aluno']),
   async (req, res, next) => {
     try {
-      // Pega todos os filtros da query string
-      const {
-        numeroSala,
-        tipoSala,
-        idProfessor,
-        disciplinaNome,
-        disciplinaTurno,
-        ano,
-        semestreAlocacao,
-        tipoAlocacao,
-        status,
-        curso,
-        semestreCurso
-      } = req.query
-      const filters = {
-        numeroSala,
-        tipoSala,
-        idProfessor,
-        disciplinaNome,
-        disciplinaTurno,
-        ano,
-        semestreAlocacao,
-        tipoAlocacao,
-        status,
-        curso,
-        semestreCurso
-      }
-
+      const filters = req.query
       let allocations
       if (req.user.role === 'admin' || req.user.role === 'aluno') {
         allocations = await getAllAllocations(filters)
-        return res.json(allocations)
       } else if (req.user.role === 'professor') {
-        // Professores só veem as suas, então adiciona o filtro de ID do usuário
         filters.idProfessor = req.user.id
         allocations = await getAllAllocations(filters)
-        return res.json(allocations)
+      } else {
+        return res.status(403).json({ message: 'Acesso negado.' })
       }
-      res.status(403).json({ message: 'Acesso negado.' })
+      return res.json(allocations)
     } catch (error) {
       next(error)
     }
   }
 )
 
-// Request a new allocation (RN006, RN007 - Professor and Admin only)
 router.post(
   '/',
   authenticateToken,
@@ -75,62 +46,82 @@ router.post(
       const {
         numero_sala,
         tipo_sala,
+        id_professor,
         nome,
         turno,
         ano,
         semestre_alocacao,
-        // tipo_alocacao agora é opcional no body, pois o banco tem DEFAULT
-        // se não for enviado, o banco usará 'fixo'
-        tipo_alocacao // Ainda lemos se ele for enviado
+        tipo_alocacao
       } = req.body
 
-      const id_professor = req.user.id
-
-      // Ajustar validação: tipo_alocacao não precisa ser validado como obrigatório aqui
       if (
         !numero_sala ||
         !tipo_sala ||
+        !id_professor ||
         !nome ||
         !turno ||
         !ano ||
         !semestre_alocacao
-        // Removido !tipo_alocacao daqui, pois é DEFAULT
       ) {
-        return res.status(400).json({
-          message:
-            'Campos essenciais para a solicitação de alocação (exceto tipo_alocacao) são obrigatórios.'
-        })
-      }
-
-      // Se tipo_alocacao for enviado, valida. Se não, o DB usa o DEFAULT.
-      if (
-        tipo_alocacao &&
-        !['esporadico', 'fixo'].includes(tipo_alocacao.toLowerCase())
-      ) {
-        return res.status(400).json({
-          message: 'Tipo de alocação inválido. Deve ser "esporadico" ou "fixo".'
-        })
+        return res
+          .status(400)
+          .json({
+            message:
+              'Todos os campos para a solicitação de alocação são obrigatórios.'
+          })
       }
 
       const newAllocation = await createAllocation(
         parseInt(numero_sala),
         tipo_sala.toLowerCase(),
-        id_professor,
+        parseInt(id_professor),
         nome,
         turno,
         parseInt(ano),
         parseInt(semestre_alocacao),
-        tipo_alocacao ? tipo_alocacao.toLowerCase() : 'fixo' // Passa 'fixo' se não veio no body
+        tipo_alocacao ? tipo_alocacao.toLowerCase() : 'fixo',
+        req.user.role
       )
       res.status(201).json(newAllocation)
     } catch (error) {
-      res.status(400).json({ message: error.message }) // Send specific error messages like "Sala já ocupada"
+      res.status(400).json({ message: error.message })
     }
   }
 )
 
-// Alteração: Update allocation status (Admin only)
-// Usa a chave composta no URL e no corpo
+router.put(
+  '/change-room/:numeroSala/:tipoSala/:idProfessor/:nomeDisc/:turnoDisc/:ano/:semestreAlocacao',
+  authenticateToken,
+  authorizeRole(['admin']),
+  async (req, res, next) => {
+    try {
+      const oldAllocationPK = {
+        numeroSala: req.params.numeroSala,
+        tipoSala: req.params.tipoSala,
+        idProfessor: req.params.idProfessor,
+        nomeDisc: req.params.nomeDisc,
+        turnoDisc: req.params.turnoDisc,
+        ano: req.params.ano,
+        semestreAlocacao: req.params.semestreAlocacao
+      }
+      const { new_numero_sala, new_tipo_sala } = req.body
+
+      if (!new_numero_sala || !new_tipo_sala) {
+        return res.status(400).json({ message: 'A nova sala é obrigatória.' })
+      }
+
+      await changeAllocationRoom(oldAllocationPK, {
+        new_numero_sala,
+        new_tipo_sala
+      })
+
+      res.json({ message: 'Sala da alocação alterada com sucesso.' })
+    } catch (error) {
+      next(error)
+    }
+  }
+)
+
 router.put(
   '/:numeroSala/:tipoSala/:idProfessor/:nomeDisc/:turnoDisc/:ano/:semestreAlocacao/status',
   authenticateToken,
@@ -172,8 +163,6 @@ router.put(
   }
 )
 
-// Alteração: Delete an allocation (Admin only)
-// Usa a chave composta no URL
 router.delete(
   '/:numeroSala/:tipoSala/:idProfessor/:nomeDisc/:turnoDisc/:ano/:semestreAlocacao',
   authenticateToken,
