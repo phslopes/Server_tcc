@@ -1,4 +1,3 @@
-// backend/middleware/authMiddleware.js
 import jwt from 'jsonwebtoken';
 
 const authenticateToken = (req, res, next) => {
@@ -13,7 +12,7 @@ const authenticateToken = (req, res, next) => {
         if (err) {
             return res.status(403).json({ message: 'Invalid token. Access forbidden.' }); // RN001
         }
-        req.user = user; // Attach user payload (id, username, role) to the request
+        req.user = user;
         next();
     });
 };

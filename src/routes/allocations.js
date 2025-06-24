@@ -1,4 +1,3 @@
-// backend/routes/allocations.js
 import express from 'express'
 import {
   createAllocation,
@@ -288,7 +287,6 @@ router.get(
   }
 )
 
-// Novo endpoint para verificar se professor tem aula programada
 router.get(
   '/check-schedule',
   authenticateToken,
@@ -328,7 +326,6 @@ router.get(
   }
 )
 
-// Novo endpoint para verificar disponibilidade de salas (sem verificar programação)
 router.get(
   '/room-availability',
   authenticateToken,

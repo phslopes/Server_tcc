@@ -13,7 +13,6 @@ const pool = mysql.createPool({
   queueLimit: 0
 })
 
-// Test database connection
 pool
   .getConnection()
   .then(connection => {
@@ -22,7 +21,7 @@ pool
   })
   .catch(err => {
     console.error('Database connection failed:', err.stack)
-    process.exit(1) // Exit process if database connection fails
+    process.exit(1)
   })
 
 export default pool

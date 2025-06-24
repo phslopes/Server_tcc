@@ -1,4 +1,3 @@
-// backend/services/allocationService.js
 import pool from '../config/db.js'
 import { updateRoomStatus, getRoomByCompositeKey } from './roomService.js'
 
@@ -461,8 +460,7 @@ const checkRoomAvailabilityOnly = async (
   const [availableRooms] = await pool.execute(`
     SELECT DISTINCT s.numero_sala, s.tipo_sala
     FROM sala s
-    WHERE s.status = 'livre'
-    AND NOT EXISTS (
+    WHERE NOT EXISTS (
       SELECT 1
       FROM alocacao al
       WHERE al.numero_sala = s.numero_sala 

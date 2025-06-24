@@ -1,4 +1,3 @@
-// backend/services/disciplineService.js
 import pool from '../config/db.js'
 
 const getAllDisciplines = async () => {

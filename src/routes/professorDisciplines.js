@@ -1,4 +1,3 @@
-// backend/routes/professorDisciplines.js
 import express from 'express'
 import {
   getAllProfessorDisciplineAssociations,
@@ -6,7 +5,7 @@ import {
   getProfessorDisciplineAssociationByCompositeKey,
   updateProfessorDisciplineAssociation,
   deleteProfessorDisciplineAssociation,
-  copyProfessorDisciplineAssociations // Importar a nova função
+  copyProfessorDisciplineAssociations
 } from '../services/professorDisciplineService.js'
 import {
   authenticateToken,
@@ -33,7 +32,7 @@ router.get(
         // RN002: Se for professor, filtra pelas suas próprias associações E pelos filtros da query
         // Supondo que req.user.id é o id_professor do usuário logado
         filters.idProfessor = req.user.id
-        associations = await getAllProfessorDisciplineAssociations(filters) // Passa os filtros
+        associations = await getAllProfessorDisciplineAssociations(filters)
         return res.json(associations)
       }
       res.status(403).json({ message: 'Acesso negado.' })
@@ -43,7 +42,7 @@ router.get(
   }
 )
 
-// Criar uma nova associação (Admin only)
+// Criar uma nova associação (Admin)
 router.post(
   '/',
   authenticateToken,
@@ -134,7 +133,7 @@ router.get(
   }
 )
 
-// Atualizar associação (Admin only)
+// Atualizar associação (Admin)
 router.put(
   '/:oldIdProfessor/:oldNomeDisc/:oldTurnoDisc/:oldAno/:oldSemestreAlocacao',
   authenticateToken,
@@ -156,7 +155,7 @@ router.put(
         semestre_alocacao,
         dia_semana,
         hora_inicio
-      } = req.body // Novas informações
+      } = req.body
       if (
         !id_professor ||
         !nome ||
