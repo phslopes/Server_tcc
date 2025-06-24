@@ -26,10 +26,7 @@ router.get(
     try {
       const filters = req.query
       let allocations
-      if (req.user.role === 'admin' || req.user.role === 'aluno') {
-        allocations = await getAllAllocations(filters)
-      } else if (req.user.role === 'professor') {
-        filters.idProfessor = req.user.id
+      if (req.user.role === 'admin' || req.user.role === 'professor' || req.user.role === 'aluno') {
         allocations = await getAllAllocations(filters)
       } else {
         return res.status(403).json({ message: 'Acesso negado.' })
