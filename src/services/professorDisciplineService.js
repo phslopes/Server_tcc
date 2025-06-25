@@ -36,14 +36,12 @@ const _checkProfessorScheduleConflict = async (
     Tarde: [
       '13:00:00',
       '13:50:00',
-      '14:40:00',
       '15:00:00',
       '15:50:00',
-      '16:40:00',
       '16:50:00',
       '17:40:00'
     ],
-    Noite: ['19:00:00', '19:50:00', '20:40:00', '21:00:00', '21:50:00']
+    Noite: ['19:00:00', '19:50:00', '21:00:00', '21:50:00']
   }
   const turnoTimeSlots = horariosPorTurno[turno]
   if (!turnoTimeSlots) throw new Error(`Turno '${turno}' é inválido.`)
@@ -107,14 +105,12 @@ const _checkStudentScheduleConflict = async (
     Tarde: [
       '13:00:00',
       '13:50:00',
-      '14:40:00',
       '15:00:00',
       '15:50:00',
-      '16:40:00',
       '16:50:00',
       '17:40:00'
     ],
-    Noite: ['19:00:00', '19:50:00', '20:40:00', '21:00:00', '21:50:00']
+    Noite: ['19:00:00', '19:50:00', '21:00:00', '21:50:00']
   }
   const turnoTimeSlots = horariosPorTurno[turno]
   if (!turnoTimeSlots) throw new Error(`Turno '${turno}' é inválido.`)
