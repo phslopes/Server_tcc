@@ -1,8 +1,7 @@
-// backend/routes/disciplines.js
 import express from 'express';
 import {
     getAllDisciplines,
-    getDisciplineByCompositeKey, // Esta função é para GET por nome/turno
+    getDisciplineByCompositeKey,
     createDiscipline,
     updateDiscipline,
     deleteDiscipline
@@ -11,7 +10,6 @@ import { authenticateToken, authorizeRole } from '../middleware/authMiddleware.j
 
 const router = express.Router();
 
-// Get all disciplines (Accessible by all roles for viewing)
 router.get('/', authenticateToken, authorizeRole(['admin', 'professor', 'aluno']), async (req, res, next) => {
     try {
         const disciplines = await getAllDisciplines();
@@ -34,7 +32,7 @@ router.get('/:nome/:turno', authenticateToken, authorizeRole(['admin', 'professo
     }
 });
 
-// Add a new discipline (RN003 - Admin only)
+//(RN003 - Admin)
 router.post('/', authenticateToken, authorizeRole(['admin']), async (req, res, next) => {
     try {
         const { nome, turno, carga, semestre_curso, curso } = req.body;
@@ -51,19 +49,18 @@ router.post('/', authenticateToken, authorizeRole(['admin']), async (req, res, n
     }
 });
 
-// Alteração: Update a discipline (Admin only)
+// Alteração:(Admin)
 router.put('/:oldNome/:oldTurno', authenticateToken, authorizeRole(['admin']), async (req, res, next) => {
     try {
         const { oldNome, oldTurno } = req.params; // Parâmetros da URL para identificar o registro
         const { nome, turno, carga, semestre_curso, curso } = req.body; // Novos dados da disciplina (podem incluir novo nome/turno)
-        
+
         if (!nome || !turno || !carga || !semestre_curso || !curso) {
             return res.status(400).json({ message: 'Todos os campos são obrigatórios para atualização da disciplina.' });
         }
-        
-        // Chama o serviço de atualização, passando os dados antigos (para WHERE) e os novos (para SET)
+
         const updated = await updateDiscipline(oldNome, oldTurno, nome, turno, carga, semestre_curso, curso);
-        
+
         if (!updated) {
             return res.status(404).json({ message: 'Disciplina não encontrada ou dados idênticos.' });
         }
@@ -76,7 +73,7 @@ router.put('/:oldNome/:oldTurno', authenticateToken, authorizeRole(['admin']), a
     }
 });
 
-// Alteração: Delete a discipline (Admin only)
+// Alteração (Admin)
 router.delete('/:nome/:turno', authenticateToken, authorizeRole(['admin']), async (req, res, next) => {
     try {
         const { nome, turno } = req.params;

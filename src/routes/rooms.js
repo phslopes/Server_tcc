@@ -1,4 +1,3 @@
-// backend/routes/rooms.js
 import express from 'express';
 import {
     getAllRooms,
@@ -11,7 +10,7 @@ import { authenticateToken, authorizeRole } from '../middleware/authMiddleware.j
 
 const router = express.Router();
 
-// Get all rooms (Accessible by all roles for viewing)
+
 router.get('/', authenticateToken, authorizeRole(['admin', 'professor', 'aluno']), async (req, res, next) => {
     try {
         const rooms = await getAllRooms();
@@ -21,7 +20,6 @@ router.get('/', authenticateToken, authorizeRole(['admin', 'professor', 'aluno']
     }
 });
 
-// Alteração: Get room by composite key (numero_sala, tipo_sala)
 router.get('/:numeroSala/:tipoSala', authenticateToken, authorizeRole(['admin', 'professor', 'aluno']), async (req, res, next) => {
     try {
         const { numeroSala, tipoSala } = req.params;
@@ -35,7 +33,7 @@ router.get('/:numeroSala/:tipoSala', authenticateToken, authorizeRole(['admin', 
     }
 });
 
-// Add a new room (RN005 - Admin only)
+//sala (RN005 - Admin)
 router.post('/', authenticateToken, authorizeRole(['admin']), async (req, res, next) => {
     try {
         const { numero_sala, tipo_sala } = req.body;
@@ -57,7 +55,7 @@ router.post('/', authenticateToken, authorizeRole(['admin']), async (req, res, n
     }
 });
 
-// Alteração: Update a room (Admin only)
+// Alteração: sala (Admin )
 router.put('/:oldNumeroSala/:oldTipoSala', authenticateToken, authorizeRole(['admin']), async (req, res, next) => {
     try {
         const { oldNumeroSala, oldTipoSala } = req.params;
@@ -85,7 +83,7 @@ router.put('/:oldNumeroSala/:oldTipoSala', authenticateToken, authorizeRole(['ad
     }
 });
 
-// Alteração: Delete a room (Admin only)
+// Alteração: sala (Admin)
 router.delete('/:numeroSala/:tipoSala', authenticateToken, authorizeRole(['admin']), async (req, res, next) => {
     try {
         const { numeroSala, tipoSala } = req.params;

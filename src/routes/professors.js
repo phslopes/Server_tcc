@@ -1,4 +1,3 @@
-// backend/routes/professors.js
 import express from 'express';
 import {
     getAllProfessors,
@@ -12,7 +11,6 @@ import { authenticateToken, authorizeRole } from '../middleware/authMiddleware.j
 
 const router = express.Router();
 
-// Get all professors (Accessible by all roles for viewing)
 router.get('/', authenticateToken, authorizeRole(['admin', 'professor', 'aluno']), async (req, res, next) => {
     try {
         const professors = await getAllProfessors();
@@ -22,7 +20,6 @@ router.get('/', authenticateToken, authorizeRole(['admin', 'professor', 'aluno']
     }
 });
 
-// Get professor by ID
 router.get('/:id', authenticateToken, authorizeRole(['admin', 'professor', 'aluno']), async (req, res, next) => {
     try {
         const professor = await getProfessorById(req.params.id);
@@ -35,7 +32,7 @@ router.get('/:id', authenticateToken, authorizeRole(['admin', 'professor', 'alun
     }
 });
 
-// Add a new professor (RN004 - Admin only)
+// professor (RN004 - Admin)
 router.post('/', authenticateToken, authorizeRole(['admin']), async (req, res, next) => {
     try {
         const { nome, email, telefone } = req.body;
@@ -52,7 +49,7 @@ router.post('/', authenticateToken, authorizeRole(['admin']), async (req, res, n
     }
 });
 
-// Update a professor (Admin only)
+// professor (Admin)
 router.put('/:id', authenticateToken, authorizeRole(['admin']), async (req, res, next) => {
     try {
         const { nome, email, telefone } = req.body;
@@ -72,7 +69,7 @@ router.put('/:id', authenticateToken, authorizeRole(['admin']), async (req, res,
     }
 });
 
-// Delete a professor (Admin only)
+// Deleta professor (Admin)
 router.delete('/:id', authenticateToken, authorizeRole(['admin']), async (req, res, next) => {
     try {
         const deleted = await deleteProfessor(req.params.id);
@@ -85,7 +82,7 @@ router.delete('/:id', authenticateToken, authorizeRole(['admin']), async (req, r
     }
 });
 
-// Get professor disciplines (for reservation system)
+// professor disciplina
 router.get('/:id/disciplines', authenticateToken, authorizeRole(['admin', 'professor', 'aluno']), async (req, res, next) => {
     try {
         const professorId = parseInt(req.params.id);

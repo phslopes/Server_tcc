@@ -1,4 +1,3 @@
-// backend/server.js
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
@@ -20,7 +19,6 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/professors', professorRoutes);
 app.use('/api/disciplines', disciplineRoutes);
@@ -28,10 +26,8 @@ app.use('/api/rooms', roomRoutes);
 app.use('/api/allocations', allocationRoutes);
 app.use('/api/professor-disciplines', professorDisciplinesRoutes); // Adiciona a nova rota
 
-// Centralized error handling middleware
 app.use(errorHandler);
 
-// Start the server
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
