@@ -49,3 +49,4 @@ http://localhost:3000/
 - 👨‍💻 [Victor Kenji Tamanaha Murad](https://github.com/Victor-Murad)
 - 👨‍💻 [Levi Silva de Aquino](https://github.com/Levi-Aquino)
 - 👨‍💻 [Kaique Gonçalves Santana](https://github.com/KaiqueSantanaa)
+- 👨‍💻 [Eric Martins de Figueiredo](https://github.com/Ecf42)

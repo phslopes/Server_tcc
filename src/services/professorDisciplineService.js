@@ -36,35 +36,38 @@ const _checkProfessorScheduleConflict = async (
     Tarde: [
       '13:00:00',
       '13:50:00',
-      '14:40:00',
       '15:00:00',
       '15:50:00',
-      '16:40:00',
       '16:50:00',
       '17:40:00'
     ],
-    Noite: ['19:00:00', '19:50:00', '20:40:00', '21:00:00', '21:50:00']
+    Noite: ['19:00:00', '19:50:00', '21:00:00', '21:50:00']
   }
-  const turnoTimeSlots = horariosPorTurno[turno]
-  if (!turnoTimeSlots) throw new Error(`Turno '${turno}' é inválido.`)
-  const newStartIndex = turnoTimeSlots.indexOf(newStartTime)
+  let horariosValidos;
+  if (turno === 'Noite' && parseInt(dia_semana) === 7) {
+    horariosValidos = horariosPorTurno['Manhã'];
+  } else {
+    horariosValidos = horariosPorTurno[turno];
+  }
+  if (!horariosValidos) throw new Error(`Turno '${turno}' é inválido.`);
+  const newStartIndex = horariosValidos.indexOf(newStartTime);
   if (newStartIndex === -1)
     throw new Error(
       `Horário de início '${newStartTime}' não é válido para o turno.`
-    )
-  const newOccupiedSlots = new Set()
+    );
+  const newOccupiedSlots = new Set();
   for (let i = 0; i < newCarga; i++) {
-    if (newStartIndex + i < turnoTimeSlots.length)
-      newOccupiedSlots.add(turnoTimeSlots[newStartIndex + i])
+    if (newStartIndex + i < horariosValidos.length)
+      newOccupiedSlots.add(horariosValidos[newStartIndex + i]);
   }
   for (const assoc of existingAssociations) {
-    const existingStartIndex = turnoTimeSlots.indexOf(assoc.hora_inicio)
+    const existingStartIndex = horariosValidos.indexOf(assoc.hora_inicio);
     if (existingStartIndex > -1) {
       for (let i = 0; i < assoc.carga; i++) {
-        if (newOccupiedSlots.has(turnoTimeSlots[existingStartIndex + i]))
+        if (newOccupiedSlots.has(horariosValidos[existingStartIndex + i]))
           throw new Error(
             `Conflito de horário para o professor: já existe um compromisso neste horário.`
-          )
+          );
       }
     }
   }
@@ -107,35 +110,38 @@ const _checkStudentScheduleConflict = async (
     Tarde: [
       '13:00:00',
       '13:50:00',
-      '14:40:00',
       '15:00:00',
       '15:50:00',
-      '16:40:00',
       '16:50:00',
       '17:40:00'
     ],
-    Noite: ['19:00:00', '19:50:00', '20:40:00', '21:00:00', '21:50:00']
+    Noite: ['19:00:00', '19:50:00', '21:00:00', '21:50:00']
   }
-  const turnoTimeSlots = horariosPorTurno[turno]
-  if (!turnoTimeSlots) throw new Error(`Turno '${turno}' é inválido.`)
-  const newStartIndex = turnoTimeSlots.indexOf(newStartTime)
+  let horariosValidos;
+  if (turno === 'Noite' && parseInt(dia_semana) === 7) {
+    horariosValidos = horariosPorTurno['Manhã'];
+  } else {
+    horariosValidos = horariosPorTurno[turno];
+  }
+  if (!horariosValidos) throw new Error(`Turno '${turno}' é inválido.`);
+  const newStartIndex = horariosValidos.indexOf(newStartTime);
   if (newStartIndex === -1)
     throw new Error(
       `Horário de início '${newStartTime}' não é válido para o turno.`
-    )
-  const newOccupiedSlots = new Set()
+    );
+  const newOccupiedSlots = new Set();
   for (let i = 0; i < newCarga; i++) {
-    if (newStartIndex + i < turnoTimeSlots.length)
-      newOccupiedSlots.add(turnoTimeSlots[newStartIndex + i])
+    if (newStartIndex + i < horariosValidos.length)
+      newOccupiedSlots.add(horariosValidos[newStartIndex + i]);
   }
   for (const assoc of existingAssociations) {
-    const existingStartIndex = turnoTimeSlots.indexOf(assoc.hora_inicio)
+    const existingStartIndex = horariosValidos.indexOf(assoc.hora_inicio);
     if (existingStartIndex > -1) {
       for (let i = 0; i < assoc.carga; i++) {
-        if (newOccupiedSlots.has(turnoTimeSlots[existingStartIndex + i]))
+        if (newOccupiedSlots.has(horariosValidos[existingStartIndex + i]))
           throw new Error(
             `Conflito de horário para a turma: já existe outra disciplina agendada neste horário para o mesmo curso e semestre.`
-          )
+          );
       }
     }
   }

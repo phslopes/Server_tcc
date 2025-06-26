@@ -1,4 +1,3 @@
-// backend/services/professorService.js
 import pool from '../config/db.js';
 
 const getAllProfessors = async () => {

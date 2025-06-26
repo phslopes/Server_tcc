@@ -1,4 +1,3 @@
-// backend/services/roomService.js
 import pool from '../config/db.js'
 
 const getAllRooms = async () => {

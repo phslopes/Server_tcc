@@ -1,7 +1,6 @@
-// backend/routes/auth.js
 import express from 'express';
 import { loginUser, registerUser } from '../services/authService.js';
-import { authorizeRole } from '../middleware/authMiddleware.js'; // Import authorizeRole to use for initial admin creation
+import { authorizeRole } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
@@ -11,16 +10,13 @@ router.post('/login', async (req, res, next) => {
         const { token, role } = await loginUser(username, password);
         res.json({ token, role });
     } catch (error) {
-        res.status(400).json({ message: error.message }); // Send specific error message
+        res.status(400).json({ message: error.message });
     }
 });
 
-// Route for initial user registration (e.g., creating an admin)
-// For security, you might want to remove this route after initial setup or secure it heavily.
 router.post('/register', async (req, res, next) => {
     try {
         const { username, password, role } = req.body;
-        // Basic validation
         if (!username || !password || !role) {
             return res.status(400).json({ message: 'Username, password, and role are required.' });
         }
