@@ -129,7 +129,8 @@ const checkRoomAvailabilityForSpecificTime = async (
   dia_semana,
   hora_inicio
 ) => {
-  const [conflicts] = await pool.execute(`
+  const [conflicts] = await pool.execute(
+    `
     SELECT 1
     FROM alocacao al
     WHERE al.numero_sala = ? 
@@ -137,9 +138,11 @@ const checkRoomAvailabilityForSpecificTime = async (
     AND al.dia_semana = ?
     AND al.hora_inicio = ?
     AND al.status IN ('confirmada', 'pendente')
-  `, [numero_sala, tipo_sala, dia_semana, hora_inicio])
+  `,
+    [numero_sala, tipo_sala, dia_semana, hora_inicio]
+  )
 
-  return conflicts.length === 0 // Se nenhum conflito, a sala está disponível
+  return conflicts.length === 0
 }
 
 const changeAllocationRoom = async (oldAllocationPK, newRoom) => {
@@ -180,7 +183,9 @@ const changeAllocationRoom = async (oldAllocationPK, newRoom) => {
     hora_inicio
   )
   if (!isAvailable) {
-    throw new Error('Conflito de agendamento: outra disciplina já está alocada para esta sala neste horário.')
+    throw new Error(
+      'Conflito de agendamento: outra disciplina já está alocada para esta sala neste horário.'
+    )
   }
 
   const connection = await pool.getConnection()
@@ -249,9 +254,10 @@ const getAllAllocations = async (filters = {}) => {
             p.nome AS professor_nome,
             d.nome AS disciplina_nome,
             d.turno AS disciplina_turno,
+            d.semestre_curso,
             al.ano,
             al.semestre_alocacao,
-            al.id_professor -- Incluir id_professor para uso no frontend (edição/deleção)
+            al.id_professor
         FROM alocacao al
         JOIN sala s ON al.numero_sala = s.numero_sala AND al.tipo_sala = s.tipo_sala
         JOIN professor p ON al.id_professor = p.id_professor
@@ -409,10 +415,13 @@ const checkRoomAvailabilityForReservation = async (
   )
 
   if (!professorDisciplina || professorDisciplina.length === 0) {
-    throw new Error('Horário não encontrado na programação do professor para esta disciplina.')
+    throw new Error(
+      'Horário não encontrado na programação do professor para esta disciplina.'
+    )
   }
 
-  const [availableRooms] = await pool.execute(`
+  const [availableRooms] = await pool.execute(
+    `
     SELECT DISTINCT s.numero_sala, s.tipo_sala
     FROM sala s
     WHERE s.status = 'livre'
@@ -431,7 +440,9 @@ const checkRoomAvailabilityForReservation = async (
       AND pd.hora_inicio = ?
       AND al.status IN ('confirmada', 'pendente')
     )
-  `, [dia_semana, hora_inicio])
+  `,
+    [dia_semana, hora_inicio]
+  )
 
   return availableRooms
 }
@@ -453,11 +464,9 @@ const checkProfessorSchedule = async (
   return professorDisciplina.length > 0
 }
 
-const checkRoomAvailabilityOnly = async (
-  dia_semana,
-  hora_inicio
-) => {
-  const [availableRooms] = await pool.execute(`
+const checkRoomAvailabilityOnly = async (dia_semana, hora_inicio) => {
+  const [availableRooms] = await pool.execute(
+    `
     SELECT DISTINCT s.numero_sala, s.tipo_sala
     FROM sala s
     WHERE NOT EXISTS (
@@ -469,7 +478,9 @@ const checkRoomAvailabilityOnly = async (
       AND al.hora_inicio = ?
       AND al.status IN ('confirmada', 'pendente')
     )
-  `, [dia_semana, hora_inicio])
+  `,
+    [dia_semana, hora_inicio]
+  )
 
   return availableRooms
 }
